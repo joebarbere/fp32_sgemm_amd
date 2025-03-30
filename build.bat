@@ -2,14 +2,14 @@
 set HIP_PLATFORM=amd
 set TMP_DIR=%cd%\tmp
 set KERNEL5_ISA_DIR=%TMP_DIR%\kernel5_isa
-set OTHER_DIR=%TMP_DIR%\other
+set DEVICE_CODE_DIR=%TMP_DIR%\device_code
 if not exist %TMP_DIR%\NUL mkdir %TMP_DIR%
 if not exist %KERNEL5_ISA_DIR%\NUL mkdir %KERNEL5_ISA_DIR%
-if not exist %OTHER_DIR%\NUL mkdir %OTHER_DIR%
+if not exist %DEVICE_CODE_DIR%\NUL mkdir %DEVICE_CODE_DIR%
 
 del /Q .\tmp\*
 del /Q .\tmp\kernel5_isa\*
-del /Q .\tmp\other\*
+del /Q .\tmp\device_code\*
 
 echo Building Kernel0...
 call hipcc -c -std=c++17 -O3 --offload-arch=gfx1102 src/kernel0_rocblas.cpp -o tmp/kernel0_rocblas.o
@@ -32,6 +32,12 @@ call hipcc -c -std=c++17 -O3 --offload-arch=gfx1102 -mcumode src/kernel5_lds_opt
 echo Extracting Kernel5 ISA...
 call cd tmp/kernel5_isa
 call hipcc --genco --offload-arch=gfx1102 ../../src/kernel5_lds_optim.cpp -mcumode --save-temps -o kernel5.hsaco
+echo Rebuilding Kernel5 from ISA
+call hipcc -target amdgcn-amd-amdhsa -mcpu=gfx1102 -mcumode -c kernel5_lds_optim-hip-amdgcn-amd-amdhsa-gfx1102.s -o kernel.o
+call ld.lld -shared kernel.o -o kernel.hsaco
+echo Sanity check...
+call fc /b kernel5_lds_optim-hip-amdgcn-amd-amdhsa-gfx1102.o kernel.o
+rem call fc /b kernel5.hsaco kernel.hsaco
 call cd ../..
 
 echo Building Kernel6...
@@ -49,17 +55,17 @@ call hipcc -std=c++17 -O3 --offload-arch=gfx1102 -lrocblas -Wno-unused-command-l
 
 echo Building Kernel6 from ISA
 echo:
-call clang -target amdgcn-amd-amdhsa -mcpu=gfx1102 -c src/kernel6_valu_optim.s -o tmp/other/kernel6_device_code.o
-call ld.lld -shared tmp/other/kernel6_device_code.o -o tmp/kernel6.hsaco
+call clang -target amdgcn-amd-amdhsa -mcpu=gfx1102 -c src/kernel6_valu_optim.s -o tmp/device_code/kernel6_device_code.o
+call ld.lld -shared tmp/device_code/kernel6_device_code.o -o tmp/kernel6.hsaco
 
 echo Building Kernel7 from ISA
 echo:
-call clang -target amdgcn-amd-amdhsa -mcpu=gfx1102 -c src/kernel7_unroll.s -o tmp/other/kernel7_device_code.o
-call ld.lld -shared tmp/other/kernel7_device_code.o -o tmp/kernel7.hsaco
+call clang -target amdgcn-amd-amdhsa -mcpu=gfx1102 -c src/kernel7_unroll.s -o tmp/device_code/kernel7_device_code.o
+call ld.lld -shared tmp/device_code/kernel7_device_code.o -o tmp/kernel7.hsaco
 
 echo Building Kernel8 from ISA
 echo:
-call clang -target amdgcn-amd-amdhsa -mcpu=gfx1102 -c src/kernel8_batched_gmem.s -o tmp/other/kernel8_device_code.o
-call ld.lld -shared tmp/other/kernel8_device_code.o -o tmp/kernel8.hsaco
+call clang -target amdgcn-amd-amdhsa -mcpu=gfx1102 -c src/kernel8_batched_gmem.s -o tmp/device_code/kernel8_device_code.o
+call ld.lld -shared tmp/device_code/kernel8_device_code.o -o tmp/kernel8.hsaco
 
 echo Build completed successfully.
